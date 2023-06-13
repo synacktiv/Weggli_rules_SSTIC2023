@@ -1,0 +1,56 @@
+#This query tries to list potentially dangerous functions
+#
+#Such as:
+# system(arg): potential injection, we try to detect if arg is not a
+# static string by excluding quotes
+echo " [*] Detecting system() and popen()"
+weggli -R '$fun=^system$' -R '$arg=[^"]' '$fun($arg)' $@
+weggli -R '$arg=[^"]' 'popen($arg,_)' $@
+
+# alloca(var); the use of alloca is discouraged, but it can be used
+# safely. We try to find only dynamically alloca()
+echo " [*] Detecting alloca() calls"
+weggli -R '$fun=^alloca$' '_ = $fun($var);' $@
+
+# getenv: is not a security problem, but it can lead to a lot
+# of unexpected output when you can modify env vars. Such as TMPDIR,
+# PAGER, HOME, etc... a special look must be done for "HTTP_*" because
+# it is set by webserver from http headers
+
+echo " [*] Detecting getenv calls"
+weggli '_ = getenv(_);' $@
+
+# gets (not perform bounds checking on the size of its input)
+#
+echo " [*] Detecting gets()"
+weggli -R '$fun=^gets$' '_=$fun(_);' $@
+
+# strcpy, strcat, stpcpy (potential overflow). We try to detect if
+# src arg is not a static string by excluding quotes.
+#
+echo " [*] Detecting strcpy(), strcat() and stpcpy()"
+weggli -R '$fun=^st[rp]cpy|strcat' -R '$arg=[^"]' '$fun(_,$arg);' $@
+
+#This one is interesting, it catches strncpy and memcpy.
+#This is a trivial error where src is used as a size instead of dest
+weggli -R 'fun=cpy' '{ $fun($dst,$src,strlen($src)); }' $@
+weggli -R 'fun=cpy' '{ $size=strlen($src); $fun($dst,$src,$size); }' $@
+
+#Next queries are dedicated to format strings
+#
+#This one detects format string such as: printf(a1); or sprintf(outstring, var1);
+#a bit trivial, but always a good catch
+#
+# we try to detect use of quotes, but there are a lot of false positive. Hard
+# to get rid of those, such as:
+# char * arg = "abcd\n";
+# printf(arg);               <- it will be detected as a format string..
+
+echo "[*] Detecting format strings"
+weggli -R '$fn=^printf$' -R '$arg=[^"]' '{NOT: $fn(_,_); $fn($arg); }' $@
+#catch sprintf and fprintf - looks for syslog and derivate, can lead to
+#interesting findings
+weggli -R '$fn=^[sf]printf$|syslog' -R '$arg=[^"]*' '{ $fn(_,$arg); }' $@
+#catch nprintf
+weggli -R '$fn=^[sf]nprintf$' -R '$arg=[^"]*' '{ $fn(_,_,$arg); }' $@
+

@@ -1,0 +1,17 @@
+# This query tries to find copy to a stack buffer.
+# This is not a bug by itself, but it can leads to potential
+# overflow
+#
+echo "strn?cpy to stack buffer"
+weggli -R 'func=^str.*cpy$' '{_ $b[_]; $func($b, _);}' $@
+
+echo "memcpy to stack buffer"
+weggli -R 'func=memcpy' '{_ $b[_]; $func($b, _, $size);}' $@
+#Note: the $size avoids static numbers, such as memcpy(d,s,15);.
+
+#too much FP for this one, use at your own
+#echo "[*] Find arrays of any type on stack (many many outputs...)"
+#weggli '_ $fun(_) { _ $var[_]; }' $@
+
+echo "[*] assign an array on stack, then call a fonction with this var. Usually error prone because of context lost"
+weggli '_ $fun(_) { _ $var[_]; $f($var); }' $@

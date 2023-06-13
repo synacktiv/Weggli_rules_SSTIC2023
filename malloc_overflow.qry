@@ -1,0 +1,44 @@
+#The goal is to find small allocs, such as alloc(uint8_t a) because
+#it's easy to overflow... Not a vuln by itself, but a starting point
+#for vulns..
+#We can also check if there is a copy after with a parameter which is
+#not a the same as the malloc parameter
+#Note: -u ensure that $size differs with $othersize
+#      -R int8_t will also match uint8_t
+#
+#Use case:
+#uint8_t size;
+#size = get_size_from_sthing(packet);
+#buff = malloc(size)
+#memcpy(buff, packet->data, packet->size); //if packet_size is int16 -> overflow...
+#
+#First request just check alloc with no copy after the malloc in the func.
+#Second request check there is an alloc then a copy with other size
+
+weggli -u -R 'byte=int8|char|byte|int16|short' \
+          -R 'alloc=lloc' \
+          -R 'cpy=cpy' \
+          '{ $byte $size; $buff = $alloc($size) ; NOT: $cpy($buff,_,$size); }' $@
+weggli -u -R 'byte=int8|char|byte|int16|short' \
+          -R 'alloc=lloc' \
+          -R 'cpy=cpy' \
+          '{ $byte $size; $buff = $alloc($size) ; $cpy($buff,_,$othersize); }' $@
+
+
+#The goal is to detect overflows in malloc calls, eventually followed by a
+#copy. This can lead to various kind of overflows.
+#
+
+echo " [*] Just alloc overflows"
+weggli -R 'alloc=lloc' '{ $size = $(_) + _ ; _ = $alloc($size);}' $@
+weggli -R 'alloc=lloc' '{ _ = $alloc(_+_);}' $@
+weggli -R 'alloc=lloc' '{ $size = $(_)*_ ; _ = $alloc($size);}' $@
+weggli -R 'alloc=lloc' '{ _ = $alloc(_*_);}' $@
+
+#Usually this one leads to crashes : alloc small buf then copy something, but it's worth
+#checking it
+echo " [*] Alloc overflow, then cpy smthin"
+weggli -u -R 'alloc=lloc' -R 'cpy=co?py' '{ $size = _($a) + _ ; _ = $alloc($size); $cpy(_,_,$a); }' $@
+weggli -u -R 'alloc=lloc' -R 'cpy=co?py' '{ _ = $alloc(_($size)+_); $cpy(_,_,$size); }' $@
+weggli -u -R 'alloc=lloc' -R 'cpy=co?py' '{ _ = $alloc(_($size+_)); $cpy(_,_,$size); }' $@
+weggli -u -R 'alloc=lloc' -R 'cpy=co?py' '{ $len = _($size+_); _ = $alloc($len); $cpy(_,_,$size); }' $@
