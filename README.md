@@ -13,8 +13,8 @@ $ bash malloc_overflow.qry -e cc sourcedir/
 There is threee categories:
 
 1. dangerous functions: such as strcpy, system, etc..
-2. stack : tries to detect copie son stack, on other things..
+2. stack : tries to detect copies on stack, on other things..
 3. malloc : finding overflows in malloc functions
 
-They should be autodocumented, so read the source.
+They are autodocumented, you can read them.
 
